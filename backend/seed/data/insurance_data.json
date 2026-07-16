@@ -1,0 +1,69 @@
+[
+  {
+    "policyNumber": "POL-1001",
+    "name": "Ananya Sharma",
+    "age": 34,
+    "insuranceType": "Health",
+    "plan": "Gold",
+    "premium": 12000,
+    "coverage": 500000,
+    "startDate": "2024-01-15",
+    "endDate": "2025-01-14",
+    "claims": [
+      { "claimId": "CLM-01", "date": "2024-06-10", "amount": 15000, "reason": "Hospitalization for fever", "status": "Approved" }
+    ]
+  },
+  {
+    "policyNumber": "POL-1002",
+    "name": "Rohan Mehta",
+    "age": 45,
+    "insuranceType": "Vehicle",
+    "plan": "Comprehensive",
+    "premium": 8000,
+    "coverage": 800000,
+    "startDate": "2023-11-01",
+    "endDate": "2024-10-31",
+    "claims": []
+  },
+  {
+    "policyNumber": "POL-1003",
+    "name": "Priya Nair",
+    "age": 29,
+    "insuranceType": "Health",
+    "plan": "Silver",
+    "premium": 7000,
+    "coverage": 300000,
+    "startDate": "2024-03-01",
+    "endDate": "2025-02-28",
+    "claims": [
+      { "claimId": "CLM-02", "date": "2024-05-20", "amount": 5000, "reason": "Dental surgery", "status": "Rejected" },
+      { "claimId": "CLM-03", "date": "2024-09-12", "amount": 20000, "reason": "Accident treatment", "status": "Approved" }
+    ]
+  },
+  {
+    "policyNumber": "POL-1004",
+    "name": "Karan Verma",
+    "age": 52,
+    "insuranceType": "Life",
+    "plan": "Term Plan 20yr",
+    "premium": 15000,
+    "coverage": 5000000,
+    "startDate": "2020-01-01",
+    "endDate": "2040-01-01",
+    "claims": []
+  },
+  {
+    "policyNumber": "POL-1005",
+    "name": "Sneha Iyer",
+    "age": 38,
+    "insuranceType": "Vehicle",
+    "plan": "Third-Party",
+    "premium": 3000,
+    "coverage": 150000,
+    "startDate": "2024-02-10",
+    "endDate": "2025-02-09",
+    "claims": [
+      { "claimId": "CLM-04", "date": "2024-07-01", "amount": 12000, "reason": "Windshield damage", "status": "Approved" }
+    ]
+  }
+]
