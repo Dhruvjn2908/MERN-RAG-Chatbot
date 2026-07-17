@@ -1,227 +1,129 @@
-MERN RAG Chatbot
+# MERN RAG Chatbot
 
-A full-stack Retrieval-Augmented Generation (RAG) chatbot built using the MERN stack and Google Gemini. The application retrieves relevant information from a knowledge base using vector similarity search, maintains conversational context through chat history, and delivers real-time AI responses via streaming.
+A Retrieval-Augmented Generation (RAG) chatbot built from scratch on the MERN stack — with authentication, a real chunking + embedding pipeline, live token streaming, and multi-turn conversation memory. Built as a deep-dive learning project to understand exactly how production RAG systems work under the hood, rather than assembling one from a framework like LangChain.
 
-Features
+## Why this isn't just another RAG demo
 
-* User authentication using JWT
-* Retrieval-Augmented Generation (RAG) architecture
-* Semantic search using vector embeddings
-* Conversation memory with persistent chat history
-* Real-time streaming AI responses
-* Multiple conversation management
-* Source attribution for retrieved documents
-* Secure backend APIs with protected routes
-* Responsive React-based user interface
+Most tutorial-level RAG chatbots stop at "embed some text, vector search it, paste it into a prompt." This project goes further, in ways that matter in real systems:
 
-Tech Stack
+**An embedding safeguard, enforced twice.**
+Every stored vector is tagged with the exact embedding model and version that produced it. Vector search queries filter on that tag, so if the embedding model is ever swapped, stale vectors from the old model are automatically excluded instead of silently returning nonsense results (a subtle bug that fails silently in most from-scratch RAG builds).
 
-Frontend
+**Real token-level streaming, not a client-side typing animation.**
+The backend streams tokens from the LLM to the frontend as they're generated, over Server-Sent Events, using a manually-parsed `fetch` stream (not `EventSource`, which can't carry auth headers). Answers appear progressively because they're generated progressively — not a `setInterval` faking it after a blocking response.
 
-* React
-* Axios
-* Server-Sent Events (SSE)
+**True multi-turn memory**
+not just a longer prompt. Each conversation is persisted in MongoDB; recent turns are re-hydrated and sent back to the LLM on every new question, with a bounded history window to keep latency and cost predictable as a conversation grows.
 
-Backend
+**JWT authentication protecting every AI-facing route**
+with password hashing via bcrypt and stateless token verification — the RAG pipeline isn't just publicly exposed logic, it's behind the same auth discipline a real product would need.
 
-* Node.js
-* Express.js
-* MongoDB
-* Mongoose
+**A deliberate chunking strategy** 
+overlapping, word-windowed chunks — so information sitting near a chunk boundary doesn't silently get lost from retrieval.
 
-AI & Search
+## Architecture
 
-* Google Gemini API
-* Vector Embeddings
-* Similarity Search
-* Retrieval-Augmented Generation (RAG)
-
-Authentication
-
-* JSON Web Tokens (JWT)
-
-System Architecture
-
-```text
-User Question
-      │
-      ▼
-Frontend (React)
-      │
-      ▼
-Express Backend
-      │
-      ▼
-Generate Query Embedding
-      │
-      ▼
-Vector Similarity Search
-      │
-      ▼
-Retrieve Relevant Chunks
-      │
-      ▼
-Load Conversation History
-      │
-      ▼
-Build Prompt (Context + Memory)
-      │
-      ▼
-Gemini LLM
-      │
-      ▼
-Stream Response
-      │
-      ▼
-Store Conversation
-      │
-      ▼
-Return Answer
+```
+React (Vite)  →  Express API  →  MongoDB Atlas (data + vector search)
+                       │
+                       ├──  Voyage AI      (embeddings)
+                       └──  Google Gemini  (streaming generation)
 ```
 
-How It Works
+**Request flow for a chat message:**
 
-1. Knowledge Retrieval
+1. Frontend sends the question with a JWT in the `Authorization` header
+2. Backend embeds the question (Voyage AI, `input_type: "query"`)
+3. MongoDB Atlas `$vectorSearch` retrieves the top-k most similar chunks, filtered to only vectors matching the current embedding model/version
+4. Prior conversation turns are loaded and trimmed to a fixed window
+5. Retrieved context + conversation history are sent to Gemini, which streams the answer back token by token over SSE
+6. The full exchange is persisted to the conversation once streaming completes
 
-When a user submits a question:
+## Tech stack
 
-1. The query is converted into an embedding vector.
-2. The vector is used to perform similarity search against stored document embeddings.
-3. The most relevant chunks are retrieved from the knowledge base.
+| Layer | Technology |
+|---|---|
+| Frontend | React (Vite), React Router, Axios, Context API |
+| Backend | Node.js, Express 5 |
+| Database | MongoDB Atlas (Mongoose ODM) |
+| Vector search | MongoDB Atlas Vector Search (cosine similarity) |
+| Embeddings | Voyage AI (`voyage-3.5-lite`, 1024 dimensions) |
+| Generation | Google Gemini (`gemini-2.5-flash-lite`), streamed |
+| Auth | JWT + bcrypt |
 
-2. Conversation Memory
+## Project structure
 
-The chatbot maintains conversational context by:
+```
+backend/
+├── config/db.js                 # MongoDB connection
+├── models/                      # User, Chunk, Conversation schemas
+├── middleware/authMiddleware.js # JWT verification
+├── controllers/                 # Auth + chat/RAG orchestration
+├── routes/                      # /api/auth, /api/chat
+├── services/
+│   ├── chunkingService.js       # Overlapping text chunking
+│   ├── embeddingService.js      # Voyage AI wrapper + safeguard constants
+│   ├── vectorSearchService.js   # $vectorSearch aggregation
+│   └── llmService.js            # Gemini streaming wrapper
+└── seed/seed.js                 # Chunk → embed → store pipeline
 
-* Storing user and assistant messages in MongoDB.
-* Retrieving recent messages from the active conversation.
-* Including chat history in every LLM request.
-
-This enables follow-up questions and context-aware responses.
-
-3. Response Generation
-
-The backend combines:
-
-* Retrieved document chunks
-* Recent conversation history
-* Current user question
-
-and sends them to Gemini to generate an informed response grounded in the retrieved context.
-
-4. Real-Time Streaming
-
-Responses are streamed token-by-token to the frontend using Server-Sent Events (SSE), providing a smooth and responsive chat experience.
-
-Project Structure
-
-```text
-project-root/
-│
-├── frontend/
-│   ├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-│
-├── backend/
-│   ├── controllers/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── services/
-│   └── config/
-│
-├── README.md
-└── .gitignore
+frontend/
+└── src/
+    ├── api/axiosClient.js       # Axios instance with JWT interceptor
+    ├── context/AuthContext.jsx  # Auth state via React Context
+    ├── pages/                   # Login, Register, Chat
+    └── components/MessageBubble.jsx
 ```
 
-Installation
+## Key implementation details
 
-Clone Repository
+**Chunking:**
 
-```bash
-git clone <repository-url>
-cd <project-folder>
-```
+Text is split into 200-word windows with a 50-word overlap, so context near a chunk boundary is never fully lost to either side.
 
-Backend Setup
+**The embedding safeguard:** 
 
-```bash
-cd backend
-npm install
-```
+Every chunk is stored with `embeddingModel` and `embeddingVersion` fields. The vector search stage includes a `$match` filter on both fields — so a change in embedding model doesn't silently corrupt retrieval quality; incompatible vectors are excluded outright rather than compared.
 
-Create a `.env` file:
+**Streaming:** 
 
-```env
-PORT=
-MONGO_URI=
-JWT_SECRET=
-GEMINI_API_KEY=
-```
+The backend opens a `text/event-stream` response and writes `data:` events as Gemini's `generateContentStream` yields tokens. Since the browser's native `EventSource` API can't send custom headers (and this app needs JWT auth on the stream), the frontend instead reads `response.body.getReader()` directly, manually buffering and parsing SSE-formatted messages as they arrive.
 
-Start the backend:
+**Conversation memory:**
 
-```bash
-npm run dev
-```
+Conversations are documents in MongoDB with an embedded `messages` array. Each new question loads the most recent N messages (trimmed to bound token cost), maps them into the LLM's expected multi-turn format, and appends the new turn — giving genuine dialogue continuity (e.g. resolving "the second one" from a prior answer) without unbounded context growth.
 
-### Frontend Setup
+## Running it locally
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+1. Clone the repo, `npm install` in both `backend/` and `frontend/`
+2. Create `backend/.env`:
+   ```
+   PORT=8000
+   MONGO_URI=your_mongodb_atlas_connection_string
+   JWT_SECRET=your_jwt_secret
+   VOYAGE_API_KEY=your_voyage_api_key
+   GEMINI_API_KEY=your_gemini_api_key
+   ```
+3. In MongoDB Atlas, create a Vector Search index named `vector_index` on the `chunks` collection:
+   ```json
+   { "fields": [{ "type": "vector", "path": "embedding", "numDimensions": 1024, "similarity": "cosine" }] }
+   ```
+4. Seed sample data: `cd backend && npm run seed`
+5. Run both servers: `npm run dev` in `backend/`, `npm run dev` in `frontend/`
 
-Environment Variables
+## API overview
 
-| Variable       | Description                |
-| -------------- | -------------------------- |
-| PORT           | Backend server port        |
-| MONGO_URI      | MongoDB connection string  |
-| JWT_SECRET     | Secret key for JWT signing |
-| GEMINI_API_KEY | Google Gemini API key      |
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/register` | — | Create an account |
+| POST | `/api/auth/login` | — | Log in, receive a JWT |
+| POST | `/api/chat/ask` | Required | Ask a question; streams the answer via SSE |
+| GET | `/api/chat/conversations` | Required | List a user's past conversations |
+| GET | `/api/chat/conversations/:id` | Required | Load a conversation's full message history |
 
-Key Engineering Decisions
+## What I'd extend next
 
-Retrieval-Augmented Generation
-
-Instead of relying solely on the LLM's pre-trained knowledge, the chatbot retrieves relevant information from a knowledge base before generating responses. This improves factual accuracy and reduces hallucinations.
-
-Conversation Memory
-
-Conversation history is stored in MongoDB and selectively included in prompts. This creates contextual continuity while controlling token usage and response latency.
-
-Embedded Message Storage
-
-Messages are embedded within conversation documents because chat messages are typically read together. This reduces database queries and simplifies conversation retrieval.
-
-Streaming Responses
-
-Server-Sent Events (SSE) are used to stream responses progressively, reducing perceived latency and improving user experience.
-
-Future Improvements
-
-* Conversation summarization for long chats
-* Hybrid keyword + vector search
-* Role-based access control
-* Multi-document upload support
-* Citation highlighting in responses
-* Conversation search functionality
-* Containerized deployment with Docker
-* Production deployment on cloud infrastructure
-
-Learning Outcomes
-
-This project demonstrates:
-
-* Full-stack MERN development
-* Authentication and authorization with JWT
-* Retrieval-Augmented Generation (RAG)
-* Vector embeddings and semantic search
-* Real-time streaming architectures
-* MongoDB schema design
-* LLM integration using Gemini
-* Conversation memory management
+- Sentence/paragraph-aware chunking instead of fixed word windows
+- Re-ranking retrieved chunks before generation
+- Streaming source citations alongside the answer text
+- Rate limiting and refresh tokens for production-grade auth
